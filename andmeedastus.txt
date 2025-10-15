@@ -1,0 +1,34 @@
+Andmete eksportimine, turvaliselt teise serverisse transportimine ja seal importimine (paaristöö)
+
+Ülesande kirjeldus
+Varasemas ülesandes lõid sa andmebaasi, milles on vähemalt ühes tabelis 2M rida. Nüüd pead looma sellest andmebaasist dump-faili ja edastama selle teise õppija kätte turvaliselt. Dump-fail ei tohi olla avalikult kättesaadav mitte ühegi sekundi jooksul.
+
+Õppijate Alpine Linux masinad asuvad igaüks NAT-i taga, mistõttu nad ei näe üksteist otse. Faili edastamiseks tuleb kasutada turvalist kanalit, näiteks Tailscale’i võrku või mõnda muud privaatset lahendust, mis tagab andmete konfidentsiaalsuse.
+
+Ülesande eesmärk
+Koosta protseduur, millega:
+
+lood dump-faili oma Alpine Linux masinas,
+transpordid selle turvaliselt teise õppija Alpine Linux serverisse,
+impordid dumpi tema serveris,
+dokumenteerid kogu protsessi ekraanipiltidega.
+Ekraanipiltidelt peab olema selgelt aru saada:
+
+kust protsess algas andmete ekspordiga (sinu Alpine masin),
+kuidas saadi fail teisele poole turvaliselt
+kus see lõppes (saaja masinas saab käivitada mõne päringu sellel andmebaasil),
+mõlemas masinas peab olema nähtav /etc/hostname faili sisu (kujuga eesnimi-perenimi-alpine).
+Nõuded
+Dump-fail tuleb luua ja krüpteerida enne transporti.
+Transport peab toimuma turvalise kanali kaudu (nt Tailscale, SSH, SFTP vms).
+Fail ei tohi olla avalikus asukohas mitte ühegi hetkega.
+Impordiprotsess peab olema dokumenteeritud – peab olema näha, et dump imporditi ja töötab.
+Ekraanipiltidel peavad olema nähtavad mõlema masina hostnamenimed ja käsuread.
+Soovitused
+Tailscale on lihtsaim viis NAT-i taga olevate masinate ühendamiseks.
+Dump-faili võib krüpteerida GPG abil või kasutada krüpteeritud ühendust (nt scp üle Tailscale’i).
+Faili sisu ei tohi edastuse käigus lekkida.
+Pärast importi kustuta ajutised failid.
+Hindamiskriteeriumid
+Turvalisus: dump ei olnud avalikus asukohas ja liikus krüpteeritult.
+Tõendatavus: ekraanipiltidelt on nähtav kogu protsess ja igal ekraanipildil on näha masina hostname'i (milles on õ
