@@ -46,13 +46,28 @@ tailscale ip -4
 
 #### Samm 2: Dump-faili Loomine (Saatja Masinas)
 
+**Docker konteineris töötava andmebaasi puhul:**
+
 ```bash
 # Loo kataloog dump-failidele
 mkdir -p /root/db_dumps
 cd /root/db_dumps
 
-# Loo andmebaasi dump (asenda DB_NIMI)
-mysqldump -u root -p DB_NIMI > dump_$(date +%Y%m%d_%H%M%S).sql
+# VARIANT 1: Kui MySQL port on forward'itud hostile (nt -p 3306:3306)
+mysqldump -h 127.0.0.1 -P 3306 -u root -p DB_NIMI > dump_$(date +%Y%m%d_%H%M%S).sql
+
+# VARIANT 2: Kasutades docker exec
+# Kontrolli töötavaid Docker konteinereid
+docker ps
+
+# Loo andmebaasi dump (asenda KONTEINER_NIMI ja DB_NIMI)
+docker exec KONTEINER_NIMI mysqldump -u root -p DB_NIMI > dump_$(date +%Y%m%d_%H%M%S).sql
+
+# VÕI kui parool on keskkonnamuutujas:
+docker exec KONTEINER_NIMI mysqldump -u root -pPAROOL DB_NIMI > dump_$(date +%Y%m%d_%H%M%S).sql
+
+# VÕI kui tahad kõik andmebaasid dumpida:
+docker exec KONTEINER_NIMI mysqldump -u root -p --all-databases > dump_all_$(date +%Y%m%d_%H%M%S).sql
 
 # Kompresseeri dump
 gzip dump_*.sql
@@ -60,6 +75,16 @@ gzip dump_*.sql
 # VALIKULINE: Lisaturvalisus GPG krüpteerimisega
 gpg -c dump_*.sql.gz
 # Märkus: SCP kasutab juba SSH krüpteerimist, seega see on valikuline
+```
+
+**Tavapärase (mitte-Docker) andmebaasi puhul:**
+
+```bash
+# Loo andmebaasi dump (asenda DB_NIMI)
+mysqldump -u root -p tahvel > dump_$(date +%Y%m%d_%H%M%S).sql
+
+# Kompresseeri dump
+gzip dump_*.sql
 ```
 
 #### Samm 3: Faili Edastamine (Saatja Masinas)
@@ -113,6 +138,18 @@ rm -f /root/dump_*
 
 #### Dump Loomine (Saatja)
 
+**Docker konteineris:**
+
+```bash
+mkdir -p /root/db_dumps
+cd /root/db_dumps
+
+# Loo dump otse kompresseeritult
+docker exec KONTEINER_NIMI mysqldump -u root -p DB_NIMI | gzip > dump_$(date +%Y%m%d_%H%M%S).sql.gz
+```
+
+**Tavapärane:**
+
 ```bash
 mkdir -p /root/db_dumps
 cd /root/db_dumps
@@ -148,6 +185,21 @@ rm -f received_dump.sql
 - Täielik kontroll faili üle
 
 #### Dump + Krüpteerimine (Saatja)
+
+**Docker konteineris:**
+
+```bash
+# Loo dump
+docker exec KONTEINER_NIMI mysqldump -u root -p DB_NIMI | gzip > dump.sql.gz
+
+# Krüpteeri GPG-ga
+gpg -c dump.sql.gz  # Sisesta tugev parool!
+
+# Kustuta krüpteerimata fail
+rm dump.sql.gz
+```
+
+**Tavapärane:**
 
 ```bash
 # Loo dump
@@ -211,8 +263,11 @@ rm dump.sql.gz.gpg dump.sql
 # Näita hostname'i
 cat /etc/hostname  # Peab olema: eesnimi-perenimi-alpine
 
-# Dump'i loomine
-mysqldump -u root -p DB_NIMI > dump_*.sql
+# Näita Docker konteinereid
+docker ps
+
+# Dump'i loomine (Dockerist)
+docker exec KONTEINER_NIMI mysqldump -u root -p DB_NIMI > dump_*.sql
 
 # Faili suurus
 ls -lh dump_*
@@ -310,6 +365,30 @@ hostname -F /etc/hostname
 ```
 
 ### MySQL/MariaDB Abikäsud
+
+**Docker konteineris:**
+
+```bash
+# Andmebaaside loetelu
+docker exec KONTEINER_NIMI mysql -u root -p -e "SHOW DATABASES;"
+
+# Tabelite arv
+docker exec KONTEINER_NIMI mysql -u root -p DB_NIMI -e "SHOW TABLES;" | wc -l
+
+# Ridade arv tabelis
+docker exec KONTEINER_NIMI mysql -u root -p DB_NIMI -e "SELECT COUNT(*) FROM tabeli_nimi;"
+
+# Dump-faili suurus kontrollimine
+ls -lh dump_*.sql.gz
+du -h dump_*.sql.gz
+
+# Sisene Docker konteinerisse interaktiivselt
+docker exec -it KONTEINER_NIMI bash
+# või
+docker exec -it KONTEINER_NIMI mysql -u root -p
+```
+
+**Tavapärane:**
 
 ```bash
 # Andmebaaside loetelu
