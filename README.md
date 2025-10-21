@@ -24,13 +24,16 @@ Selles projektis tuleb:
 - Lihtne seadistada
 - Töötab ka virtuaalmasinate vahel
 
-#### Samm 1: Tailscale'i Seadistamine
+#### Samm 1: Vajalike Tööriistade Installimine
 
-Installi ja seadista Tailscale mõlemas Alpine Linux masinas:
+Installi vajalikud tööriistad mõlemas Alpine Linux masinas:
 
 ```bash
 # Installi Tailscale
 apk add tailscale
+
+# Installi GPG krüpteerimise tarbeks (kui soovid kasutada)
+apk add gnupg gpg-agent
 
 # Käivita Tailscale daemon
 rc-service tailscale start
@@ -56,19 +59,6 @@ cd /root/db_dumps
 # VARIANT 1: Kui MySQL port on forward'itud hostile (nt -p 3306:3306)
 mysqldump -h 127.0.0.1 -P 3306 -u root -p DB_NIMI > dump_$(date +%Y%m%d_%H%M%S).sql
 
-# VARIANT 2: Kasutades docker exec
-# Kontrolli töötavaid Docker konteinereid
-docker ps
-
-# Loo andmebaasi dump (asenda KONTEINER_NIMI ja DB_NIMI)
-docker exec KONTEINER_NIMI mysqldump -u root -p DB_NIMI > dump_$(date +%Y%m%d_%H%M%S).sql
-
-# VÕI kui parool on keskkonnamuutujas:
-docker exec KONTEINER_NIMI mysqldump -u root -pPAROOL DB_NIMI > dump_$(date +%Y%m%d_%H%M%S).sql
-
-# VÕI kui tahad kõik andmebaasid dumpida:
-docker exec KONTEINER_NIMI mysqldump -u root -p --all-databases > dump_all_$(date +%Y%m%d_%H%M%S).sql
-
 # Kompresseeri dump
 gzip dump_*.sql
 
@@ -77,24 +67,11 @@ gpg -c dump_*.sql.gz
 # Märkus: SCP kasutab juba SSH krüpteerimist, seega see on valikuline
 ```
 
-**Tavapärase (mitte-Docker) andmebaasi puhul:**
-
-```bash
-# Loo andmebaasi dump (asenda DB_NIMI)
-mysqldump -u root -p tahvel > dump_$(date +%Y%m%d_%H%M%S).sql
-
-# Kompresseeri dump
-gzip dump_*.sql
-```
-
 #### Samm 3: Faili Edastamine (Saatja Masinas)
 
 ```bash
 # Küsi teise õppija Tailscale IP-aadress
 # Teine õppija käivitab: tailscale ip -4
-
-# Edasta fail SCP kaudu (asenda 100.x.y.z tegeliku IP-ga)
-scp dump_*.sql.gz root@100.x.y.z:/root/
 
 # Kui krüpteerisid GPG-ga:
 scp dump_*.sql.gz.gpg root@100.x.y.z:/root/
@@ -112,7 +89,39 @@ gunzip dump_*.sql.gz
 # Kui kasutasid GPG krüpteerimist:
 gpg -d dump_*.sql.gz.gpg > dump_*.sql.gz
 gunzip dump_*.sql.gz
+```
 
+**Kui MySQL töötab Dockeris:**
+
+```bash
+# Loo uus andmebaas
+docker exec -i KONTEINER_NIMI mysql -u root -p -e "CREATE DATABASE uus_andmebaas;"
+
+# Impordi dump
+docker exec -i KONTEINER_NIMI mysql -u root -p uus_andmebaas < dump_*.sql
+
+# Kontrolli importi
+docker exec KONTEINER_NIMI mysql -u root -p uus_andmebaas -e "SHOW TABLES;"
+docker exec KONTEINER_NIMI mysql -u root -p uus_andmebaas -e "SELECT COUNT(*) FROM tabeli_nimi;"
+```
+
+**Kui MySQL port on forward'itud (nt -p 3306:3306):**
+
+```bash
+# Loo uus andmebaas
+mysql -h 127.0.0.1 -P 3306 -u root -p -e "CREATE DATABASE uus_andmebaas;"
+
+# Impordi dump
+mysql -h 127.0.0.1 -P 3306 -u root -p uus_andmebaas < dump_*.sql
+
+# Kontrolli importi
+mysql -h 127.0.0.1 -P 3306 -u root -p uus_andmebaas -e "SHOW TABLES;"
+mysql -h 127.0.0.1 -P 3306 -u root -p uus_andmebaas -e "SELECT COUNT(*) FROM tabeli_nimi;"
+```
+
+**Tavapärane (mitte-Docker):**
+
+```bash
 # Loo uus andmebaas
 mysql -u root -p -e "CREATE DATABASE uus_andmebaas;"
 
@@ -122,7 +131,11 @@ mysql -u root -p uus_andmebaas < dump_*.sql
 # Kontrolli importi
 mysql -u root -p uus_andmebaas -e "SHOW TABLES;"
 mysql -u root -p uus_andmebaas -e "SELECT COUNT(*) FROM tabeli_nimi;"
+```
 
+**Puhasta ajutised failid:**
+
+```bash
 # Kustuta ajutised failid
 rm -f /root/dump_*
 ```
@@ -169,7 +182,32 @@ cat dump_*.sql.gz | nc VASTUVÕTJA_TAILSCALE_IP 9999
 #### Import (Vastuvõtja)
 
 ```bash
+# Dekompresseeri
 gunzip received_dump.sql.gz
+```
+
+**Kui MySQL töötab Dockeris:**
+
+```bash
+# Impordi
+docker exec -i KONTEINER_NIMI mysql -u root -p -e "CREATE DATABASE uus_andmebaas;"
+docker exec -i KONTEINER_NIMI mysql -u root -p uus_andmebaas < received_dump.sql
+rm -f received_dump.sql
+```
+
+**Kui MySQL port on forward'itud:**
+
+```bash
+# Impordi
+mysql -h 127.0.0.1 -P 3306 -u root -p -e "CREATE DATABASE uus_andmebaas;"
+mysql -h 127.0.0.1 -P 3306 -u root -p uus_andmebaas < received_dump.sql
+rm -f received_dump.sql
+```
+
+**Tavapärane:**
+
+```bash
+# Impordi
 mysql -u root -p -e "CREATE DATABASE uus_andmebaas;"
 mysql -u root -p uus_andmebaas < received_dump.sql
 rm -f received_dump.sql
@@ -185,6 +223,13 @@ rm -f received_dump.sql
 - Täielik kontroll faili üle
 
 #### Dump + Krüpteerimine (Saatja)
+
+**Installi vajalikud tööriistad (Saatja masinas):**
+
+```bash
+# Installi SFTP klient ja GPG
+apk add openssh-client gnupg gpg-agent
+```
 
 **Docker konteineris:**
 
@@ -214,13 +259,25 @@ rm dump.sql.gz
 
 #### SFTP Server Seadistamine (Vastuvõtja)
 
+**Installi vajalikud tööriistad (Vastuvõtja masinas):**
+
+```bash
+# Installi SSH server ja GPG
+apk add openssh-server gnupg gpg-agent
+
+# Käivita SSH server
+rc-service sshd start
+rc-update add sshd
+```
+
+**Kontrolli seadistust:**
+
 ```bash
 # Veendu, et SSH server töötab
 rc-service sshd status
 
 # Kui ei tööta, käivita:
-rc-service sshd start
-rc-update add sshd
+rc-service sshd restart
 ```
 
 #### Faili Üleslaadimine (Saatja)
@@ -242,7 +299,33 @@ gpg -d dump.sql.gz.gpg > dump.sql.gz
 
 # Dekompresseeri
 gunzip dump.sql.gz
+```
 
+**Kui MySQL töötab Dockeris:**
+
+```bash
+# Impordi
+docker exec -i KONTEINER_NIMI mysql -u root -p -e "CREATE DATABASE uus_andmebaas;"
+docker exec -i KONTEINER_NIMI mysql -u root -p uus_andmebaas < dump.sql
+
+# Puhasta
+rm dump.sql.gz.gpg dump.sql
+```
+
+**Kui MySQL port on forward'itud:**
+
+```bash
+# Impordi
+mysql -h 127.0.0.1 -P 3306 -u root -p -e "CREATE DATABASE uus_andmebaas;"
+mysql -h 127.0.0.1 -P 3306 -u root -p uus_andmebaas < dump.sql
+
+# Puhasta
+rm dump.sql.gz.gpg dump.sql
+```
+
+**Tavapärane:**
+
+```bash
 # Impordi
 mysql -u root -p -e "CREATE DATABASE uus_andmebaas;"
 mysql -u root -p uus_andmebaas < dump.sql
